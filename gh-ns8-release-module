@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+
+source ./functions.sh
+
+# Function to display usage instructions
+function usage() {
+  echo "Usage: $0 [create|check|comment] --repo <repo-name> [options]"
+  echo ""
+  echo "Options:"
+  echo "  --repo <repo-name>         The GitHub NethServer 8 module repository (e.g., owner/ns8-module)."
+  echo "  --release-refs <commit-sha> Commit SHA to associate with the release."
+  echo "  --release-name <name>      Specify the release name (must follow semver format)."
+  echo "  --testing                  Create a testing release."
+  echo "  --draft                    Create a draft release."
+  echo "  -h, --help                 Display this help message."
+  exit 1
+}
+
+# The first argument must be `create` or `comment`
+if [[ "$1" =~ ^(create|check|comment)$ ]]; then
+  subcommand=$1
+  shift
+else
+  echo 'The first argument must be `create`, `check`  or `comment`'
+  usage
+fi
+
+testing_arg=0
+# Parse command line arguments
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --repo)
+    repo_arg="$2"
+    shift
+    ;;
+  --release-refs)
+    release_refs_arg="$2"
+    shift
+    ;;
+  --release-name)
+    release_name_arg="$2"
+    shift
+    ;;
+  --testing)
+    testing_arg=1
+    ;;
+  --draft)
+    draft_arg="--draft"
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown argument: $1"
+    usage
+    ;;
+  esac
+  shift
+done
+
+#If the argument `--repo` is not provided, get the repo from the current directory
+if [ -z "$repo_arg" ]; then
+  repo_arg=$(gh repo view --json name --jq '.name')
+  if [ -z "$repo_arg" ]; then
+    echo "Could not determine the repo. Please provide the repo name using the --repo flag"
+    exit 1
+  fi
+fi
+
+#Check if the repo is a valid github repo, using the gh api
+gh api repos/$repo_arg 2>&1 > /dev/null
+if [ $? -ne 0 ]; then
+  echo "Invalid repo: $repo_arg"
+  exit 1
+fi
+
+# Check the repository has a valid NS8 module name in the format `owner/ns8-<module-name>`
+if ! echo $repo_arg | grep -qE '^[^/]+/ns8-'; then
+  echo "Invalid NS8 module name: $repo_arg"
+  exit 1
+fi
+
+#If the argument `--release-refs` is not provided, get the latest commit of the default branch
+if [ -z "$release_refs_arg" ]; then
+  release_refs_arg=$(gh api repos/$repo_arg/commits --jq '.[0].sha')
+  if [ -z "$release_refs_arg" ]; then
+    echo "Could not determine the latest commit sha. Please provide the commit sha using the --release-refs flag"
+    exit 1
+  fi
+else
+  #Check if the commit sha is on the default branch
+  default_branch=$(gh repo view --repo $repo_arg --json defaultBranchRef -q ".defaultBranchRef.name")
+  commit_branch=$(gh api repos/$repo_arg/commits/$release_refs_arg/branches-where-head --jq '.[].name | select(. == $default_branch)' --arg default_branch $default_branch)
+  if [ -z "$commit_branch" ]; then
+    echo "The commit sha is not on the default branch: $default_branch"
+    exit 1
+  fi
+  target="--target $release_refs_arg"
+fi
+
+# If the argument `--testing` is not provided then the `--release-name` argument must be present
+if [ $testing_arg == 0 ] && [ -z "$release_name_arg" ] && [ $subcommand != "check" ]; then
+  echo "Please provide the release name using the --release-name flag"
+  exit 1
+fi
+
+# If the argument `--release-name` is provided check if the release name is in
+# valid semver format
+if [ ! -z "$release_name_arg" ]; then
+  if ! is_semver $release_name_arg; then
+    echo "Invalid semver format for release name"
+    exit 1
+  fi
+fi
+
+
+# Check if the subcommand is `create` or `comment`
+if [ "$subcommand" == "create" ]; then
+  # Create a new release
+
+  release_name=$release_name_arg
+
+  if [ $testing_arg == 1 ]; then
+    prerelease="--prerelease"
+    if [ -z "$release_name_arg" ]; then
+      release_name=$(next_testing_release $repo_arg)
+      if [ "$?" -eq 1  ]; then
+        echo "Could not determine the next testing release name"
+        exit 1
+      fi
+    fi
+  fi
+
+  gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes $release_name
+
+elif [ "$subcommand" == "check" ]; then
+  # Check the status of the issues linked to the PRs of the latest release
+  echo "Checking the issues of the latest release"
+elif [ "$subcommand" == "comment" ]; then
+  # Create a new comment on the latest release
+  echo "Commenting the issues of the latest release"
+fi
+
