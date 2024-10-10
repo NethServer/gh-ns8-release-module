@@ -47,3 +47,86 @@ function next_testing_release() {
 
   echo -n "$release_name"
 }
+
+function scan_for_prs() {
+  local repo=$1
+  local start_ref=$2
+  local end_ref=$3
+  local merged_prs=""
+  local pr_numbers
+
+# Initialize an empty array to hold unique PR numbers
+  declare -a pr_numbers
+
+  # Fetch the commits in the specified range
+  commits=$(gh api repos/$repo/compare/$start_ref...$end_ref --jq '.commits[].sha')
+
+  # Check if commits are found in the specified range
+  if [ -z "$commits" ]; then
+    echo "No commits found in the specified range."
+    return 1
+  fi
+
+  for commit_sha in $commits; do
+    prs=$(gh api repos/$repo/commits/$commit_sha/pulls --jq '.[].number')
+    # If PRs are found, add them to the associative array
+    if [ ! -z "$prs" ]; then
+      for pr_number in $prs; do
+        pr_numbers[$pr_number]=1
+      done
+    fi
+  done
+
+  # Display the list of unique PRs
+  if [ ${#pr_numbers[@]} -eq 0 ]; then
+    echo "No pull requests found for the commits in the specified range."
+    return 2
+  else
+    for pr in "${!pr_numbers[@]}"; do
+      echo "$pr"
+    done
+  fi
+}
+
+function get_linked_issues() {
+  local repo=$1
+  local pr_number=$2
+  local linked_issues
+
+  # Search for the patterns and extract the issue numbers:
+  # NethServer/issues/1234
+  # NethServer/dev#1234
+  # https://github.com/NethServer/dev/issues/1234
+  linked_issues=$(gh pr view $pr_number --repo $repo --json body --jq '.body' | \
+  grep -oP '(?<=NethServer/issues/|NethServer/dev#|https:\/\/github.com\/NethServer\/dev\/issues\/)\d+')
+
+  if [ -z "$linked_issues" ]; then
+    return 1
+  fi
+
+  echo "$linked_issues"
+}
+
+function is_issue_closed() {
+  local repo=$1
+  local issue_number=$2
+  local state
+
+  state=$(gh issue view $issue_number --repo $repo --json state --jq '.state')
+
+  if [ "$state" == "closed" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function get_issue_labels() {
+  local repo=$1
+  local issue_number=$2
+  local labels
+
+  labels=$(gh issue view $issue_number --repo $repo --json labels --jq '.labels[].name')
+
+  echo $labels
+}

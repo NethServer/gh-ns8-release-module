@@ -140,8 +140,39 @@ if [ "$subcommand" == "create" ]; then
   gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes $release_name
 
 elif [ "$subcommand" == "check" ]; then
-  # Check the status of the issues linked to the PRs of the latest release
-  echo "Checking the issues of the latest release"
+
+  # Get the name the latest release that is not a prerelease
+  latest_release=$(gh release list  --repo $repo_arg --exclude-pre-releases --json tagName --limit 1 --order desc  --jq '.[0].tagName')
+
+  # Get the commit sha for the latest releases
+  latest_release_sha=$(gh api repos/$repo_arg/git/ref/tags/$latest_release --jq '.object.sha')
+  # Check if the latest release tag is the HEAD of the main branches
+  if [ "$latest_release_sha" == "$(gh api repos/$repo_arg/git/ref/heads/main --jq '.object.sha')" ]; then
+    echo "The latest release tag is the HEAD of the main branch, there is nothing to release"
+    exit 1
+  fi
+
+  if [ ! -z "$latest_release" ]; then
+    # Get the PRs from the latest release
+    prs=$(scan_for_prs $repo_arg $latest_release main)
+    if [ "$?" -eq 0 ]; then
+      for pr in $prs; do
+	linked_issues="${linked_issues}\n$(get_linked_issues $repo_arg $pr)"
+	if [ "$?" -ne 0 ]; then
+		echo "Could not get the linked issues for PR: $pr"
+	fi
+      done
+    fi
+  fi
+
+  # Get the status of the linked issues
+  for issue in $(echo -e "$linked_issues" | sort | uniq); do
+    if ! is_issue_closed "NethServer/dev" $issue; then
+      issue_label=$(get_issue_labels "NethServer/dev" $issue)
+      echo "https://github.com/NethServer/dev/issues/$issue - $issue_label"
+    fi
+  done
+
 elif [ "$subcommand" == "comment" ]; then
   # Create a new comment on the latest release
   echo "Commenting the issues of the latest release"
