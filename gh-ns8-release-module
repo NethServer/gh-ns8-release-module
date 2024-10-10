@@ -125,7 +125,7 @@ if [ "$subcommand" == "create" ]; then
     if [ -z "$release_name_arg" ]; then
       release_name=$(next_testing_release $repo_arg)
       if [ "$?" -eq 1  ]; then
-        echo "Could not determine the next testing release name"
+        echo $release_name
         exit 1
       fi
     fi

@@ -24,6 +24,13 @@ function next_testing_release() {
 
   # Get the commit sha for the latest release
   latest_release_sha=$(gh api repos/$1/git/refs/tags/$latest_release --jq '.object.sha')
+
+  # Check if the latest release tag is the HEAD of the main branches
+  if [ "$latest_release_sha" == "$(gh api repos/$1/git/ref/heads/main --jq '.object.sha')" ]; then
+    echo "The latest release tag is the HEAD of the main branch."
+    return 1
+  fi
+
   # #Check if the latest release is a prerelease
   is_prerelease=$(gh api repos/$1/releases/tags/$latest_release --jq '.prerelease')
 
