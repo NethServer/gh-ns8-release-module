@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Enable debugging and logging of shell operations
+if [ -n "$DEBUG" ]; then
+set -x
+PS4='+${LINENO}: '
+fi
+
 source ./functions.sh
 
 # Function to display usage instructions
