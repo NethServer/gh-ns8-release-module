@@ -159,7 +159,7 @@ elif [ "$subcommand" == "check" ]; then
       for pr in $prs; do
 	linked_issues="${linked_issues}\n$(get_linked_issues $repo_arg $pr)"
 	if [ "$?" -ne 0 ]; then
-		echo "Could not get the linked issues for PR: $pr"
+		echo "https://github.com/$repo_arg/pull/$pr - not linked to any issue"
 	fi
       done
     fi
