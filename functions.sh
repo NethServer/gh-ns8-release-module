@@ -188,3 +188,31 @@ function create_comment() {
     fi
   done
 }
+
+# Function to clean pre-releases between stable releases
+function clean_releases() {
+  local repo=$1
+  local stable_release=$2
+  local pre_releases=()
+
+  # Get the previous stable release
+  previous_release=$(find_previous_release $repo $stable_release)
+
+  pre_releases=$(gh release list --repo $repo --limit 1000 --json isPrerelease,tagName,createdAt | \
+    jq --arg start_tag "$previous_release" --arg end_tag "$stable_release" -r '
+      def between($start; $end):
+        map(select(.tagName == $start).createdAt) as $start_date |
+        map(select(.tagName == $end).createdAt) as $end_date |
+        map(select(.isPrerelease and .createdAt > $start_date[0] and .createdAt <= $end_date[0])) |
+        sort_by(.createdAt) |
+        map(.tagName) |
+        join(" ");
+      between($start_tag; $end_tag)
+  ')
+
+  if [ -n "$pre_releases" ]; then
+    for pre_release in $pre_releases; do
+      gh release delete $pre_release --repo $repo --yes
+    done
+  fi
+}

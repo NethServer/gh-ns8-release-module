@@ -10,7 +10,7 @@ source "$(dirname "$(readlink -f "$0")")/functions.sh"
 
 # Function to display usage instructions
 function usage() {
-  echo "Usage: $0 [create|check|comment] --repo <repo-name> [options]"
+  echo "Usage: $0 [create|check|comment|clean] --repo <repo-name> [options]"
   echo ""
   echo "Options:"
   echo "  --repo <repo-name>         The GitHub NethServer 8 module repository (e.g., owner/ns8-module)."
@@ -22,12 +22,12 @@ function usage() {
   exit 1
 }
 
-# The first argument must be `create` or `comment`
-if [[ "$1" =~ ^(create|check|comment)$ ]]; then
+# The first argument must be `create`, `check`, `comment`, or `clean`
+if [[ "$1" =~ ^(create|check|comment|clean)$ ]]; then
   subcommand=$1
   shift
 else
-  echo 'The first argument must be `create`, `check`  or `comment`'
+  echo 'The first argument must be `create`, `check`, `comment`, or `clean`'
   usage
 fi
 
@@ -105,7 +105,7 @@ else
 fi
 
 # If the argument `--testing` is not provided then the `--release-name` argument must be present
-if [ $testing_arg == 0 ] && [ -z "$release_name_arg" ] && [ $subcommand != "check" ]; then
+if [ $testing_arg == 0 ] && [ -z "$release_name_arg" ] && [ $subcommand != "check" ] && [ $subcommand != "clean" ]; then
   echo "Please provide the release name using the --release-name flag"
   exit 1
 fi
@@ -120,7 +120,7 @@ if [ ! -z "$release_name_arg" ]; then
 fi
 
 
-# Check if the subcommand is `create` or `comment`
+# Check if the subcommand is `create`, `check`, `comment`, or `clean`
 if [ "$subcommand" == "create" ]; then
   # Create a new release
 
@@ -182,4 +182,18 @@ elif [ "$subcommand" == "comment" ]; then
   fi
 
   create_comment $repo_arg $release_name_arg
+
+elif [ "$subcommand" == "clean" ]; then
+
+  # If no stable release is provided, get the latest stable release
+  if [ -z "$release_name_arg" ]; then
+    release_name_arg=$(gh release list --repo $repo_arg --exclude-pre-releases --json tagName --limit 1 --order desc --jq '.[0].tagName')
+    if [ -z "$release_name_arg" ]; then
+      echo "No stable release found in the repository."
+      exit 1
+    fi
+  fi
+
+  clean_releases $repo_arg $release_name_arg
+
 fi

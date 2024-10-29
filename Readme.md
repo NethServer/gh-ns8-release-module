@@ -32,7 +32,7 @@ gh extension install NethServer/gh-ns8-release-module
 ## Usage
 
 ```bash
-gh ns8-release-module [create|check|comment] [options]
+gh ns8-release-module [create|check|comment|clean] [options]
 ```
 
 ### Commands
@@ -40,6 +40,7 @@ gh ns8-release-module [create|check|comment] [options]
 - `create`: Creates a new release.
 - `check`: Check the status of the `main` branch
 - `comment`: Adds a comment to the release issues
+- `clean`: Removes pre-releases between stable releases
 
 ### Options
 
@@ -86,6 +87,18 @@ Add a comment to the release issues:
 
 ```bash
 gh ns8-release-module comment --repo NethServer/ns8-module --release-name <release-name>
+```
+
+Remove pre-releases between stable releases:
+
+```bash
+gh ns8-release-module clean --repo NethServer/ns8-module --release-name <stable-release>
+```
+
+Remove pre-releases from latest stable release:
+
+```bash
+gh ns8-release-module clean --repo NethServer/ns8-module
 ```
 
 ## Troubleshooting
