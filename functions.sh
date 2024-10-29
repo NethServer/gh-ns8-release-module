@@ -114,7 +114,7 @@ function is_issue_closed() {
 
   state=$(gh issue view $issue_number --repo $repo --json state --jq '.state')
 
-  if [ "$state" == "closed" ]; then
+  if [ "$state" == "CLOSED" ]; then
     return 0
   else
     return 1
