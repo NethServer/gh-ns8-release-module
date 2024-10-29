@@ -174,7 +174,12 @@ elif [ "$subcommand" == "check" ]; then
   done
 
 elif [ "$subcommand" == "comment" ]; then
-  # Create a new comment on the latest release
-  echo "Commenting the issues of the latest release"
-fi
 
+  # If the argument `--release-name` is not provided, get the name the latest release
+  if [ -z "$release_name_arg" ]; then
+    # Get the name the latest release
+    release_name_arg=$(gh release list  --repo $repo_arg --json tagName --limit 1 --order desc  --jq '.[0].tagName')
+  fi
+
+  create_comment $repo_arg $release_name_arg
+fi

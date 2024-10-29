@@ -130,3 +130,61 @@ function get_issue_labels() {
 
   echo $labels
 }
+
+# Find the previous release based on the current release
+function find_previous_release() {
+  local repo=$1
+  local current_release=$2
+  local is_prerelease
+  local previous_release
+
+  # Check if the current release is a pre-release
+  is_prerelease=$(gh release view $current_release --repo $repo --json isPrerelease --jq '.isPrerelease')
+
+  # Get the list of releases sorted by creation date
+  release_list=$(gh release list --repo $repo --limit 1000 --json tagName,isPrerelease --order asc)
+
+  if [ "$is_prerelease" = "true" ]; then
+  # Search for the previous release among all releases
+    previous_release=$(echo "$release_list" | jq -r --arg current "$current_release" \
+      'map(.tagName) | index($current) as $idx | if $idx and $idx > 0 then .[$idx - 1] else empty end')
+  else
+    # Search for the previous release among only stable releases
+    previous_release=$(echo "$release_list" | jq -r --arg current "$current_release" \
+      'map(select(.isPrerelease | not)) | map(.tagName) | index($current) as $idx | if $idx and $idx > 0 then .[$idx - 1] else empty end')
+  fi
+
+  if [ -n "$previous_release" ]; then
+    echo -n $previous_release
+  fi
+}
+
+function create_comment() {
+  local repo=$1
+  local release_name=$2
+
+  # Check if the current release is a pre-release
+  is_prerelease=$(gh release view $release_name --repo $repo --json isPrerelease --jq '.isPrerelease')
+
+  # Get the latest release
+  previous_release=$(find_previous_release $repo $release_name)
+
+  # Get the list of merged PRs for the release
+  merged_prs=$(scan_for_prs $repo $previous_release $release_name)
+
+  # Check if any PRs are found and add it to te
+  for pr in $merged_prs; do
+    linked_issues="${linked_issues}\n$(get_linked_issues $repo_arg $pr)"
+  done
+
+  for issue in $( echo -e $linked_issues | sort | uniq); do
+    if ! is_issue_closed "NethServer/dev" $issue; then
+      if [ "$is_prerelease" == "true" ]; then
+        comment="Testing release \`$repo\` [$release_name](https://github.com/$repo/releases/tag/$release_name)"
+      else
+        comment="Release \`$repo\`  [$release_name](https://github.com/$repo/releases/tag/$release_name)"
+      fi
+      gh issue comment $issue --repo NethServer/dev --body "$comment"
+    fi
+  done
+}

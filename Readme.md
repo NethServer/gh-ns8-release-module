@@ -39,7 +39,7 @@ gh ns8-release-module [create|check|comment] [options]
 
 - `create`: Creates a new release.
 - `check`: Check the status of the `main` branch
-- `comment`: Adds a comment to the release issues. <!-- TODO -->
+- `comment`: Adds a comment to the release issues
 
 ### Options
 
@@ -80,6 +80,12 @@ Check the status of the `main` branch:
 
 ```bash
 gh ns8-release-module check --repo NethServer/ns8-module
+```
+
+Add a comment to the release issues:
+
+```bash
+gh ns8-release-module comment --repo NethServer/ns8-module --release-name <release-name>
 ```
 
 ## Troubleshooting
