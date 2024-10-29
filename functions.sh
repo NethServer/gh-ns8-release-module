@@ -32,7 +32,7 @@ function next_testing_release() {
   fi
 
   # #Check if the latest release is a prerelease
-  is_prerelease=$(gh api repos/$1/releases/tags/$latest_release --jq '.prerelease')
+  is_prerelease=$(gh release view $latest_release --repo $1 --json isPrerelease --jq '.isPrerelease')
 
   if [ "$is_prerelease" == "false" ]; then
     # The name of the release should be the same as the latest release with
