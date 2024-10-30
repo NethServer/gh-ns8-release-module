@@ -20,6 +20,7 @@ This is a GitHub CLI (`gh`) extension that automates the creation and management
 - Automatically generate the next testing release name.
 - Create releases name and release notes.
 - Check if a module is ready for release.
+- Remove pre-releases between stable releases.
 
 ## Installation
 
