@@ -10,6 +10,7 @@ This is a GitHub CLI (`gh`) extension that automates the creation and management
   - [Commands](#commands)
   - [Options](#options)
   - [Examples](#examples)
+- [Testing Version Generation](#testing-version-generation)
 - [Troubleshooting](#troubleshooting)
 - [Updating and Uninstalling](#updating-and-uninstalling)
 - [Prerequisites](#prerequisites)
@@ -101,6 +102,20 @@ Remove pre-releases from latest stable release:
 ```bash
 gh ns8-release-module clean --repo NethServer/ns8-module
 ```
+
+## Testing Version Generation
+
+When creating testing releases without specifying a name (using `--testing` without `--release-name`), the version is automatically generated following these rules:
+
+1. If the latest release is a stable release (no pre-release suffix):
+   - Increments the patch version by 1
+   - Adds `-testing.1` suffix
+   - Example: `1.0.0` → `1.0.1-testing.1`
+
+2. If the latest release is already a testing release:
+   - Keeps the same version numbers
+   - Increments only the testing number
+   - Example: `1.0.1-testing.1` → `1.0.1-testing.2`
 
 ## Troubleshooting
 
