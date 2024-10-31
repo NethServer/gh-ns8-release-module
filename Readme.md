@@ -10,6 +10,7 @@ This is a GitHub CLI (`gh`) extension that automates the creation and management
   - [Commands](#commands)
   - [Options](#options)
   - [Examples](#examples)
+  - [Minimum PAT Permissions](#minimum-pat-permissions)
 - [Testing Version Generation](#testing-version-generation)
 - [Comment Generation](#comment-generation)
 - [Troubleshooting](#troubleshooting)
@@ -103,6 +104,31 @@ Remove pre-releases from latest stable release:
 ```bash
 gh ns8-release-module clean --repo NethServer/ns8-module
 ```
+
+### Minimum PAT Permissions
+
+The following are the minimum PAT (Personal Access Token) permissions required for each command:
+
+- `create`:
+  - `repo`
+  - `public_repo`
+  - `repo_deployment`
+  - `repo:status`
+
+- `check`:
+  - `repo`
+  - `public_repo`
+  - `repo:status`
+
+- `comment`:
+  - `repo`
+  - `public_repo`
+  - `repo:status`
+
+- `clean`:
+  - `repo`
+  - `public_repo`
+  - `repo:status`
 
 ## Testing Version Generation
 
