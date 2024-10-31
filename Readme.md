@@ -11,6 +11,7 @@ This is a GitHub CLI (`gh`) extension that automates the creation and management
   - [Options](#options)
   - [Examples](#examples)
 - [Testing Version Generation](#testing-version-generation)
+- [Comment Generation](#comment-generation)
 - [Troubleshooting](#troubleshooting)
 - [Updating and Uninstalling](#updating-and-uninstalling)
 - [Prerequisites](#prerequisites)
@@ -116,6 +117,24 @@ When creating testing releases without specifying a name (using `--testing` with
    - Keeps the same version numbers
    - Increments only the testing number
    - Example: `1.0.1-testing.1` → `1.0.1-testing.2`
+
+## Comment Generation
+
+When using the `comment` command, the extension will:
+
+1. Find all PRs merged between the current release and the previous one
+2. Extract linked issues from the PR descriptions (looking for references like `NethServer/dev#1234` or `https://github.com/NethServer/dev/issues/1234`)
+3. For each linked issue that is still open:
+   - If the release is a pre-release (testing), add a comment:
+     ```
+     Testing release `owner/ns8-module` [1.0.0-testing.1](link-to-release)
+     ```
+   - If the release is stable, add a comment:
+     ```
+     Release `owner/ns8-module` [1.0.0](link-to-release)
+     ```
+
+The comment command can be used with or without specifying a release name. If no release name is provided, it will use the latest release.
 
 ## Troubleshooting
 
