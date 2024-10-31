@@ -155,8 +155,10 @@ elif [ "$subcommand" == "check" ]; then
   echo ""
 
   unlinked_prs=""
+  translation_prs=""
   open_issues=""
   closed_issues=""
+  linked_issues=""
 
   if [ ! -z "$latest_release" ]; then
     # Get the PRs from the latest release
@@ -165,7 +167,13 @@ elif [ "$subcommand" == "check" ]; then
       for pr in $prs; do
         linked=$(get_linked_issues $repo_arg $pr)
         if [ "$?" -ne 0 ]; then
-          unlinked_prs="${unlinked_prs}https://github.com/$repo_arg/pull/$pr\n"
+          # Check if PR has translation label
+          has_translation=$(gh api repos/$repo_arg/pulls/$pr --jq '[.labels[].name] | any(. == "translation")')
+          if [ "$has_translation" = "true" ]; then
+            translation_prs="${translation_prs}https://github.com/$repo_arg/pull/$pr\n"
+          else
+            unlinked_prs="${unlinked_prs}https://github.com/$repo_arg/pull/$pr\n"
+          fi
         else
           linked_issues="${linked_issues}\n$linked"
         fi
@@ -191,6 +199,11 @@ elif [ "$subcommand" == "check" ]; then
     echo -e "$unlinked_prs"
   fi
   
+  if [ ! -z "$translation_prs" ]; then
+    echo -e "\033[36mTranslation PRs:\033[0m"
+    echo -e "$translation_prs"
+  fi
+
   if [ ! -z "$open_issues" ]; then
     echo -e "\033[31mOpen issues:\033[0m"
     echo -e "$open_issues"
