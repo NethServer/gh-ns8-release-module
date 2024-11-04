@@ -107,28 +107,78 @@ gh ns8-release-module clean --repo NethServer/ns8-module
 
 ### Minimum PAT Permissions
 
-The following are the minimum PAT (Personal Access Token) permissions required for each command:
+The following are the minimum Personal Access Token (PAT) permissions required for each command:
 
-- `create`:
-  - `repo`
+- **For operations on public repositories:**
   - `public_repo`
-  - `repo_deployment`
-  - `repo:status`
 
-- `check`:
+- **For operations on private repositories:**
   - `repo`
-  - `public_repo`
-  - `repo:status`
 
-- `comment`:
-  - `repo`
-  - `public_repo`
-  - `repo:status`
+#### Command Permissions
 
-- `clean`:
-  - `repo`
-  - `public_repo`
-  - `repo:status`
+- **`create`**:
+  - Required Permissions:
+    - `public_repo` (for public repositories) **or**
+    - `repo` (for private repositories)
+
+- **`check`**:
+  - Required Permissions:
+    - *(No additional permissions needed for public repositories)*
+    - `repo` (for private repositories)
+
+- **`comment`**:
+  - Required Permissions:
+    - `public_repo` (for public repositories) **or**
+    - `repo` (for private repositories)
+
+- **`clean`**:
+  - Required Permissions:
+    - `public_repo` (for public repositories) **or**
+    - `repo` (for private repositories)
+
+**Note:** For the `check` command on public repositories, no additional PAT permissions are required since it only performs read operations.
+
+#### Using GitHub Actions Token
+
+When using this extension within GitHub Actions workflows, you can utilize the
+token provided by GitHub Actions. This token is available as `GITHUB_TOKEN` and
+is automatically injected into workflows. It has sufficient permissions to
+perform most operations required by this extension on the repository.
+
+**Caution:** Be aware that using the default `GITHUB_TOKEN` provided by GitHub
+Actions will not trigger downstream workflows, such as build and publication
+processes of the module. This is due to security measures in place that prevent
+accidental workflow triggers, as the `GITHUB_TOKEN` has limited scope and
+cannot trigger other workflows that are activated by `release` events.
+
+##### Proposed Solution
+
+To allow workflows to trigger downstream events, you can use a Personal Access
+Token (PAT) with the necessary permissions instead of the default
+`GITHUB_TOKEN`. Store the PAT securely as a secret in your repository or
+organization (e.g., `PAT_TOKEN`) and reference it in your workflow:
+
+```yaml
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install gh extensions
+        run: |
+          gh extension install NethServer/gh-ns8-release-module
+      - name: Create a testing release
+        run: |
+          gh ns8-release-module create --repo ${{ github.repository }} --testing
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+```
+
+**Important:** Ensure that your PAT is stored securely and has only the minimum
+required permissions as specified above. By using a PAT, you enable the
+workflow to trigger other workflows in response to events like creating a
+release.
 
 ## Testing Version Generation
 
