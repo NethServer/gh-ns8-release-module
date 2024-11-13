@@ -156,9 +156,10 @@ elif [ "$subcommand" == "check" ]; then
 
   unlinked_prs=""
   translation_prs=""
-  open_issues=""
-  closed_issues=""
-  linked_issues=""
+  declare -A parent_issues
+  declare -A child_issues
+  declare -A issue_labels
+  declare -A issue_status
 
   if [ ! -z "$latest_release" ]; then
     # Get the PRs from the latest release
@@ -167,7 +168,7 @@ elif [ "$subcommand" == "check" ]; then
       for pr in $prs; do
         linked=$(get_linked_issues $repo_arg $pr)
         if [ "$?" -ne 0 ]; then
-          # Check if PR has translation label
+          # Handle translation and unlinked PRs
           has_translation=$(gh api repos/$repo_arg/pulls/$pr --jq '[.labels[].name] | any(. == "translation")')
           if [ "$has_translation" = "true" ]; then
             translation_prs="${translation_prs}https://github.com/$repo_arg/pull/$pr\n"
@@ -175,21 +176,29 @@ elif [ "$subcommand" == "check" ]; then
             unlinked_prs="${unlinked_prs}https://github.com/$repo_arg/pull/$pr\n"
           fi
         else
-          linked_issues="${linked_issues}\n$linked"
+          for issue in $linked; do
+            parent=$(get_parent_issue_number "NethServer/dev" $issue)
+            if [ ! -z "$parent" ]; then
+              # This is a child issue
+              child_issues[$parent]+="$issue "
+              # Store parent's info if we haven't already
+              if [ -z "${parent_issues[$parent]}" ]; then
+                parent_issues[$parent]=1
+                issue_labels[$parent]=$(get_issue_labels "NethServer/dev" $parent)
+                issue_status[$parent]=$(is_issue_closed "NethServer/dev" $parent && echo "CLOSED" || echo "OPEN")
+              fi
+            else
+              # This is a parent or standalone issue
+              parent_issues[$issue]=1
+            fi
+            # Store issue info regardless of parent/child status
+            issue_labels[$issue]=$(get_issue_labels "NethServer/dev" $issue)
+            issue_status[$issue]=$(is_issue_closed "NethServer/dev" $issue && echo "CLOSED" || echo "OPEN")
+          done
         fi
       done
     fi
   fi
-
-  # Get the status of the linked issues and organize them
-  for issue in $(echo -e "$linked_issues" | sort | uniq); do
-    if is_issue_closed "NethServer/dev" $issue; then
-      closed_issues="${closed_issues}https://github.com/NethServer/dev/issues/$issue\n"
-    else
-      issue_label=$(get_issue_labels "NethServer/dev" $issue)
-      open_issues="${open_issues}https://github.com/NethServer/dev/issues/$issue - $issue_label\n"
-    fi
-  done
 
   # Print summary
   echo "Summary:"
@@ -204,17 +213,51 @@ elif [ "$subcommand" == "check" ]; then
     echo -e "$translation_prs"
   fi
 
-  if [ ! -z "$open_issues" ]; then
-    echo -e "\033[31mOpen issues:\033[0m"
-    echo -e "$open_issues"
-  fi
+  # Process and display issues hierarchically
+  echo -e "\033[1mIssues:\033[0m"
+  # First, display parent issues with their children
+  for parent in "${!parent_issues[@]}"; do
+    # Skip if this is actually a child issue
+    if [ ! -z "$(echo "${child_issues[@]}" | grep -w "$parent")" ]; then
+      continue
+    fi
+
+    if [ "${issue_status[$parent]}" = "CLOSED" ]; then
+      status_color="\033[32m"
+    else
+      status_color="\033[31m"
+    fi
+    echo -e "${status_color}[${issue_status[$parent]}]\033[0m https://github.com/NethServer/dev/issues/$parent - ${issue_labels[$parent]}"
+
+    if [ ! -z "${child_issues[$parent]}" ]; then
+      for child in ${child_issues[$parent]}; do
+        if [ "${issue_status[$child]}" = "CLOSED" ]; then
+          status_color="\033[32m"
+        else
+          status_color="\033[31m"
+        fi
+        echo -e "  └─ ${status_color}[${issue_status[$child]}]\033[0m https://github.com/NethServer/dev/issues/$child - ${issue_labels[$child]}"
+      done
+    fi
+  done
+
+  # Display standalone issues (no parent or children)
+  for issue in "${!issue_labels[@]}"; do
+    # Skip if this is a parent or child issue
+    if [ ! -z "${child_issues[$issue]}" ] || [ ! -z "$(echo "${child_issues[@]}" | grep -w "$issue")" ]; then
+      continue
+    fi
+    if [ -z "${parent_issues[$issue]}" ]; then
+      if [ "${issue_status[$issue]}" = "CLOSED" ]; then
+        status_color="\033[32m"
+      else
+        status_color="\033[31m"
+      fi
+      echo -e "${status_color}[${issue_status[$issue]}]\033[0m https://github.com/NethServer/dev/issues/$issue - ${issue_labels[$issue]}"
+    fi
+  done
   
-  if [ ! -z "$closed_issues" ]; then
-    echo -e "\033[32mClosed issues:\033[0m"
-    echo -e "$closed_issues"
-  fi
-  
-  if [ -z "$unlinked_prs" ] && [ -z "$open_issues" ]; then
+  if [ -z "$unlinked_prs" ] && [ -z "${!parent_issues[@]}" ] && [ -z "${!child_issues[@]}" ]; then
     echo -e "\033[32mAll checks passed! Ready to release.\033[0m"
   fi
 
