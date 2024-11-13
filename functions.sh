@@ -185,6 +185,11 @@ function create_comment() {
         comment="Release \`$repo\`  [$release_name](https://github.com/$repo/releases/tag/$release_name)"
       fi
       gh issue comment $issue --repo NethServer/dev --body "$comment"
+
+      parent_issue=$(get_parent_issue_number "NethServer/dev" $issue)
+      if [ -n "$parent_issue" ]; then
+        gh issue comment $parent_issue --repo "NethServer/dev" --body "$comment"
+      fi
     fi
   done
 }
@@ -215,4 +220,22 @@ function clean_releases() {
       gh release delete $pre_release --repo $repo --yes
     done
   fi
+}
+
+# Get the parent issue number of a sub-issue
+function get_parent_issue_number() {
+  local owner=$(echo $1 | cut -d'/' -f1)
+  local repo=$(echo $1 | cut -d'/' -f2)
+  local issueNumber=$2
+
+  gh api graphql -f owner="$owner" -f repo="$repo" -F issueNumber="$issueNumber" -f query='
+    query($owner: String!, $repo: String!, $issueNumber: Int!) {
+      repository(owner: $owner, name: $repo) {
+        issue(number: $issueNumber) {
+          parent {
+            number
+          }
+        }
+      }
+    }' --jq '.data.repository.issue.parent.number'  -H 'GraphQL-Features: sub_issues'
 }
