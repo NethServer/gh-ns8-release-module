@@ -160,6 +160,7 @@ elif [ "$subcommand" == "check" ]; then
   declare -A child_issues
   declare -A issue_labels
   declare -A issue_status
+  declare -A issue_progress
 
   if [ ! -z "$latest_release" ]; then
     # Get the PRs from the latest release
@@ -184,16 +185,35 @@ elif [ "$subcommand" == "check" ]; then
               # Store parent's info if we haven't already
               if [ -z "${parent_issues[$parent]}" ]; then
                 parent_issues[$parent]=1
-                issue_labels[$parent]=$(get_issue_labels "NethServer/dev" $parent)
-                issue_status[$parent]=$(is_issue_closed "NethServer/dev" $parent && echo "CLOSED" || echo "OPEN")
+                all_labels=$(get_issue_labels "NethServer/dev" $parent)
+                issue_labels[$parent]=$(echo "$all_labels" | sed -e 's/testing//g' -e 's/verified//g' | xargs)
+                issue_status[$parent]=$(is_issue_closed "NethServer/dev" $parent && echo "🟣 Closed" || echo "🟢 Open")
+                # Check progress status
+                if echo "$all_labels" | grep -q "verified"; then
+                  issue_progress[$parent]="✅ Verified"
+                elif echo "$all_labels" | grep -q "testing"; then
+                  issue_progress[$parent]="🔨 Testing"
+                else
+                  issue_progress[$parent]="🚧 In Progress"
+                fi
               fi
             else
               # This is a parent or standalone issue
               parent_issues[$issue]=1
             fi
             # Store issue info regardless of parent/child status
-            issue_labels[$issue]=$(get_issue_labels "NethServer/dev" $issue)
-            issue_status[$issue]=$(is_issue_closed "NethServer/dev" $issue && echo "CLOSED" || echo "OPEN")
+            # Remove testing and verified labels from display
+            all_labels=$(get_issue_labels "NethServer/dev" $issue)
+            issue_labels[$issue]=$(echo "$all_labels" | sed -e 's/testing//g' -e 's/verified//g' | xargs)
+            issue_status[$issue]=$(is_issue_closed "NethServer/dev" $issue && echo "🟣 Closed" || echo "🟢 Open")
+            # Check progress status
+            if echo "$all_labels" | grep -q "verified"; then
+              issue_progress[$issue]="✅ Verified"
+            elif echo "$all_labels" | grep -q "testing"; then
+              issue_progress[$issue]="🔨 Testing"
+            else
+              issue_progress[$issue]="🚧 In Progress"
+            fi
           done
         fi
       done
@@ -207,14 +227,14 @@ elif [ "$subcommand" == "check" ]; then
     echo -e "\033[33mPRs without linked issues:\033[0m"
     echo -e "$unlinked_prs"
   fi
-  
+
   if [ ! -z "$translation_prs" ]; then
     echo -e "\033[36mTranslation PRs:\033[0m"
     echo -e "$translation_prs"
   fi
 
-  # Process and display issues hierarchically
   echo -e "\033[1mIssues:\033[0m"
+
   # First, display parent issues with their children
   for parent in "${!parent_issues[@]}"; do
     # Skip if this is actually a child issue
@@ -222,21 +242,11 @@ elif [ "$subcommand" == "check" ]; then
       continue
     fi
 
-    if [ "${issue_status[$parent]}" = "CLOSED" ]; then
-      status_color="\033[32m"
-    else
-      status_color="\033[31m"
-    fi
-    echo -e "${status_color}[${issue_status[$parent]}]\033[0m https://github.com/NethServer/dev/issues/$parent - ${issue_labels[$parent]}"
+    printf "%-12s %-15s %-50s %s\n" "${issue_status[$parent]}" "${issue_progress[$parent]}" "https://github.com/NethServer/dev/issues/$parent" "${issue_labels[$parent]}"
 
     if [ ! -z "${child_issues[$parent]}" ]; then
       for child in ${child_issues[$parent]}; do
-        if [ "${issue_status[$child]}" = "CLOSED" ]; then
-          status_color="\033[32m"
-        else
-          status_color="\033[31m"
-        fi
-        echo -e "  └─ ${status_color}[${issue_status[$child]}]\033[0m https://github.com/NethServer/dev/issues/$child - ${issue_labels[$child]}"
+        printf "%-2s%-10s %-15s %-50s %s\n" "└─" "${issue_status[$child]}" "${issue_progress[$child]}" "https://github.com/NethServer/dev/issues/$child" "${issue_labels[$child]}"
       done
     fi
   done
@@ -248,17 +258,12 @@ elif [ "$subcommand" == "check" ]; then
       continue
     fi
     if [ -z "${parent_issues[$issue]}" ]; then
-      if [ "${issue_status[$issue]}" = "CLOSED" ]; then
-        status_color="\033[32m"
-      else
-        status_color="\033[31m"
-      fi
-      echo -e "${status_color}[${issue_status[$issue]}]\033[0m https://github.com/NethServer/dev/issues/$issue - ${issue_labels[$issue]}"
+      printf "%-12s %-15s %-50s %s\n" "${issue_status[$issue]}" "${issue_progress[$issue]}" "https://github.com/NethServer/dev/issues/$issue" "${issue_labels[$issue]}"
     fi
   done
-  
+
   if [ -z "$unlinked_prs" ] && [ -z "${!parent_issues[@]}" ] && [ -z "${!child_issues[@]}" ]; then
-    echo -e "\033[32mAll checks passed! Ready to release.\033[0m"
+    echo -e "\033[32m✅ All checks passed! Ready to release.\033[0m"
   fi
 
 elif [ "$subcommand" == "comment" ]; then
