@@ -187,14 +187,14 @@ elif [ "$subcommand" == "check" ]; then
                 parent_issues[$parent]=1
                 all_labels=$(get_issue_labels "NethServer/dev" $parent)
                 issue_labels[$parent]=$(echo "$all_labels" | sed -e 's/testing//g' -e 's/verified//g' | xargs)
-                issue_status[$parent]=$(is_issue_closed "NethServer/dev" $parent && echo "🟣 Closed" || echo "🟢 Open")
+                issue_status[$parent]=$(is_issue_closed "NethServer/dev" $parent && echo "🟣" || echo "🟢")
                 # Check progress status
                 if echo "$all_labels" | grep -q "verified"; then
-                  issue_progress[$parent]="✅ Verified"
+                  issue_progress[$parent]="✅"
                 elif echo "$all_labels" | grep -q "testing"; then
-                  issue_progress[$parent]="🔨 Testing"
+                  issue_progress[$parent]="🔨"
                 else
-                  issue_progress[$parent]="🚧 In Progress"
+                  issue_progress[$parent]="🚧"
                 fi
               fi
             else
@@ -205,14 +205,14 @@ elif [ "$subcommand" == "check" ]; then
             # Remove testing and verified labels from display
             all_labels=$(get_issue_labels "NethServer/dev" $issue)
             issue_labels[$issue]=$(echo "$all_labels" | sed -e 's/testing//g' -e 's/verified//g' | xargs)
-            issue_status[$issue]=$(is_issue_closed "NethServer/dev" $issue && echo "🟣 Closed" || echo "🟢 Open")
+            issue_status[$issue]=$(is_issue_closed "NethServer/dev" $issue && echo "🟣" || echo "🟢")
             # Check progress status
             if echo "$all_labels" | grep -q "verified"; then
-              issue_progress[$issue]="✅ Verified"
+              issue_progress[$issue]="✅"
             elif echo "$all_labels" | grep -q "testing"; then
-              issue_progress[$issue]="🔨 Testing"
+              issue_progress[$issue]="🔨"
             else
-              issue_progress[$issue]="🚧 In Progress"
+              issue_progress[$issue]="🚧"
             fi
           done
         fi
@@ -242,11 +242,11 @@ elif [ "$subcommand" == "check" ]; then
       continue
     fi
 
-    printf "%-12s %-15s %-50s %s\n" "${issue_status[$parent]}" "${issue_progress[$parent]}" "https://github.com/NethServer/dev/issues/$parent" "${issue_labels[$parent]}"
+    printf "%-6s %s %-46s %s\n" "${issue_status[$parent]}" "${issue_progress[$parent]}" "https://github.com/NethServer/dev/issues/$parent" "${issue_labels[$parent]}"
 
     if [ ! -z "${child_issues[$parent]}" ]; then
       for child in ${child_issues[$parent]}; do
-        printf "%-2s%-10s %-15s %-50s %s\n" "└─" "${issue_status[$child]}" "${issue_progress[$child]}" "https://github.com/NethServer/dev/issues/$child" "${issue_labels[$child]}"
+        printf "%-2s%-2s %s %-46s %s\n" "└─" "${issue_status[$child]}" "${issue_progress[$child]}" "https://github.com/NethServer/dev/issues/$child" "${issue_labels[$child]}"
       done
     fi
   done
@@ -258,7 +258,7 @@ elif [ "$subcommand" == "check" ]; then
       continue
     fi
     if [ -z "${parent_issues[$issue]}" ]; then
-      printf "%-12s %-15s %-50s %s\n" "${issue_status[$issue]}" "${issue_progress[$issue]}" "https://github.com/NethServer/dev/issues/$issue" "${issue_labels[$issue]}"
+      printf "%-6s %s %-46s %s\n" "${issue_status[$issue]}" "${issue_progress[$issue]}" "https://github.com/NethServer/dev/issues/$issue" "${issue_labels[$issue]}"
     fi
   done
 
@@ -266,6 +266,10 @@ elif [ "$subcommand" == "check" ]; then
     echo -e "\033[32m✅ All checks passed! Ready to release.\033[0m"
   fi
 
+  # Print legend
+  echo "---"
+  echo "Issue status:    🟢 Open    🟣 Closed"
+  echo "Progress status: 🚧 In Progress    🔨 Testing    ✅ Verified"
 elif [ "$subcommand" == "comment" ]; then
 
   # If the argument `--release-name` is not provided, get the name the latest release
