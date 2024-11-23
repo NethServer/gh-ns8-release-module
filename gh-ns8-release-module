@@ -161,6 +161,8 @@ elif [ "$subcommand" == "check" ]; then
   declare -A issue_labels
   declare -A issue_status
   declare -A issue_progress
+  declare -A issue_refs
+  declare -A processed_issues  # New array to track which issues we've already processed
 
   if [ ! -z "$latest_release" ]; then
     # Get the PRs from the latest release
@@ -178,12 +180,24 @@ elif [ "$subcommand" == "check" ]; then
           fi
         else
           for issue in $linked; do
+            # Skip if we've already processed this issue
+            if [ ! -z "${processed_issues[$issue]}" ]; then
+              # Just increment reference counter
+              issue_refs[$issue]=$((${issue_refs[$issue]:-0} + 1))
+              continue
+            fi
+
+            processed_issues[$issue]=1
+            # Increment reference counter
+            issue_refs[$issue]=$((${issue_refs[$issue]:-0} + 1))
+
             parent=$(get_parent_issue_number "NethServer/dev" $issue)
             if [ ! -z "$parent" ]; then
               # This is a child issue
               child_issues[$parent]+="$issue "
               # Store parent's info if we haven't already
-              if [ -z "${parent_issues[$parent]}" ]; then
+              if [ -z "${processed_issues[$parent]}" ]; then
+                processed_issues[$parent]=1
                 parent_issues[$parent]=1
                 all_labels=$(get_issue_labels "NethServer/dev" $parent)
                 issue_labels[$parent]=$(echo "$all_labels" | sed -e 's/testing//g' -e 's/verified//g' | xargs)
@@ -202,7 +216,6 @@ elif [ "$subcommand" == "check" ]; then
               parent_issues[$issue]=1
             fi
             # Store issue info regardless of parent/child status
-            # Remove testing and verified labels from display
             all_labels=$(get_issue_labels "NethServer/dev" $issue)
             issue_labels[$issue]=$(echo "$all_labels" | sed -e 's/testing//g' -e 's/verified//g' | xargs)
             issue_status[$issue]=$(is_issue_closed "NethServer/dev" $issue && echo "🟣" || echo "🟢")
@@ -242,11 +255,13 @@ elif [ "$subcommand" == "check" ]; then
       continue
     fi
 
-    printf "%-6s %s %-46s %s\n" "${issue_status[$parent]}" "${issue_progress[$parent]}" "https://github.com/NethServer/dev/issues/$parent" "${issue_labels[$parent]}"
+    ref_display="${issue_refs[$parent]:-0}"
+    printf "%-6s %s %-45s (%s) %s\n" "${issue_status[$parent]}" "${issue_progress[$parent]}" "https://github.com/NethServer/dev/issues/$parent" "$ref_display" "${issue_labels[$parent]}"
 
     if [ ! -z "${child_issues[$parent]}" ]; then
       for child in ${child_issues[$parent]}; do
-        printf "%-2s%-2s %s %-46s %s\n" "└─" "${issue_status[$child]}" "${issue_progress[$child]}" "https://github.com/NethServer/dev/issues/$child" "${issue_labels[$child]}"
+        child_ref_display="${issue_refs[$child]:-0}"
+        printf "%-2s%-2s %s %-45s (%s) %s\n" "└─" "${issue_status[$child]}" "${issue_progress[$child]}" "https://github.com/NethServer/dev/issues/$child" "$child_ref_display" "${issue_labels[$child]}"
       done
     fi
   done
@@ -258,7 +273,8 @@ elif [ "$subcommand" == "check" ]; then
       continue
     fi
     if [ -z "${parent_issues[$issue]}" ]; then
-      printf "%-6s %s %-46s %s\n" "${issue_status[$issue]}" "${issue_progress[$issue]}" "https://github.com/NethServer/dev/issues/$issue" "${issue_labels[$issue]}"
+      ref_display="${issue_refs[$issue]:-0}"
+      printf "%-6s %s %-45s (%s) %s\n" "${issue_status[$issue]}" "${issue_progress[$issue]}" "https://github.com/NethServer/dev/issues/$issue" "$ref_display" "${issue_labels[$issue]}"
     fi
   done
 
