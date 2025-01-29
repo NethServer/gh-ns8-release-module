@@ -13,6 +13,7 @@ This is a GitHub CLI (`gh`) extension that automates the creation and management
   - [Minimum PAT Permissions](#minimum-pat-permissions)
 - [Testing Version Generation](#testing-version-generation)
 - [Comment Generation](#comment-generation)
+- [Check Command Documentation](#check-command-documentation)
 - [Troubleshooting](#troubleshooting)
 - [Updating and Uninstalling](#updating-and-uninstalling)
 - [Prerequisites](#prerequisites)
@@ -211,6 +212,68 @@ When using the `comment` command, the extension will:
      ```
 
 The comment command can be used with or without specifying a release name. If no release name is provided, it will use the latest release.
+
+## Check Command Documentation
+
+### Purpose
+
+The `check` command is used to verify the status of the `main` branch and check
+for pull requests (PRs) and issues since the latest release. It helps ensure
+that the repository is ready for a new release by providing a summary of PRs
+and issues.
+
+### Usage
+
+```bash
+gh ns8-release-module check --repo <repo-name>
+```
+
+### Output Format
+
+The `check` command outputs a summary of PRs and issues in the following format:
+
+- PRs without linked issues
+- Translation PRs
+- Issues with their status and progress
+
+### Emojis Used
+
+The `check` command uses emojis to indicate the status and progress of issues:
+
+- **Issue status:**
+  - 🟢 Open
+  - 🟣 Closed
+
+- **Progress status:**
+  - 🚧 In Progress
+  - 🔨 Testing
+  - ✅ Verified
+
+### Examples
+
+Here are some examples of the `check` command output:
+
+#### Example 1: PRs without linked issues
+
+```
+Summary:
+--------
+PRs without linked issues:
+https://github.com/NethServer/ns8-module/pull/123
+https://github.com/NethServer/ns8-module/pull/456
+
+Translation PRs:
+https://github.com/NethServer/ns8-module/pull/789
+
+Issues:
+🟢 🚧 https://github.com/NethServer/dev/issues/101 (2) bug
+🟣 ✅ https://github.com/NethServer/dev/issues/102 (1) enhancement
+└─ 🟢 🔨 https://github.com/NethServer/dev/issues/103 (1) documentation
+
+---
+Issue status:    🟢 Open    🟣 Closed
+Progress status: 🚧 In Progress    🔨 Testing    ✅ Verified
+```
 
 ## Troubleshooting
 
