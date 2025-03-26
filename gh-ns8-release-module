@@ -138,6 +138,7 @@ if [ "$subcommand" == "create" ]; then
   fi
 
   gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes $release_name
+  git pull --tags
 
 elif [ "$subcommand" == "check" ]; then
   # Get the name the latest release that is not a prerelease
