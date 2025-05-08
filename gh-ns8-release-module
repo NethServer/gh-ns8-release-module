@@ -264,7 +264,7 @@ elif [ "$subcommand" == "check" ]; then
     # Display standalone issues
     display_standalone_issues
 
-    if [ -z "$unlinked_prs" ] && [ -z "${!parent_issues[@]}" ] && [ -z "${!child_issues[@]}" ]; then
+    if [ -z "$unlinked_prs" ] && [ ${#parent_issues[@]} -eq 0 ] && [ ${#child_issues[@]} -eq 0 ]; then
       echo -e "\033[32m✅ All checks passed! Ready to release.\033[0m"
     fi
 
