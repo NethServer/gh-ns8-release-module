@@ -129,6 +129,8 @@ if [ "$subcommand" == "create" ]; then
 
   if [[ "$testing_arg" == 1 || "$release_name" =~ - ]]; then
     prerelease="--prerelease"
+    #Get the name the latest release
+    previous_release=$(gh release list --repo $repo_arg --json tagName --limit 1 --order desc --jq '.[0].tagName')
     if [ -z "$release_name_arg" ]; then
       release_name=$(next_testing_release $repo_arg)
       if [ "$?" -eq 1  ]; then
@@ -136,9 +138,40 @@ if [ "$subcommand" == "create" ]; then
         exit 1
       fi
     fi
+  else
+    # Get the name the latest release that is not a prerelease
+    previous_release=$(gh release list --repo $repo_arg --exclude-pre-releases --json tagName --limit 1 --order desc --jq '.[0].tagName')
   fi
 
-  gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes $release_name
+  # Create release notes with linked issues
+  if [ -n "$previous_release" ]; then
+    # Generate release notes with linked issues
+    {
+      merged_prs=$(scan_for_prs $repo_arg $previous_release "main")
+
+      # Extract linked issues from PRs
+      all_issues=""
+      for pr in $merged_prs; do
+        linked_issues=$(get_linked_issues $repo_arg $pr)
+        if [ -n "$linked_issues" ]; then
+          all_issues="${all_issues}${linked_issues} "
+        fi
+      done
+
+      # Format and output unique issues
+      if [ -n "$all_issues" ]; then
+        echo "## Linked Issues"
+        for issue in $(echo "$all_issues" | tr ' ' '\n' | sort -u); do
+          # Get issue title
+          issue_title=$(gh api repos/NethServer/dev/issues/$issue --jq '.title' 2>/dev/null)
+          echo "- [NethServer/dev#${issue}](https://github.com/NethServer/dev/issues/${issue}): $issue_title"
+        done
+      fi
+    } | gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes --notes-file - $release_name
+  else
+    # No previous release found, use standard generate-notes
+    gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes $release_name
+  fi
 
 elif [ "$subcommand" == "check" ]; then
   # Get the name the latest release that is not a prerelease
