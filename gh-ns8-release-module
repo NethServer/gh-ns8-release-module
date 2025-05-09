@@ -264,7 +264,32 @@ elif [ "$subcommand" == "check" ]; then
     # Display standalone issues
     display_standalone_issues
 
-    if [ -z "$unlinked_prs" ] && [ ${#parent_issues[@]} -eq 0 ] && [ ${#child_issues[@]} -eq 0 ]; then
+    # Check for any issues not in verified status
+    local all_verified=true
+    # First check all child issues are verified
+    for parent in "${!child_issues[@]}"; do
+      for child in ${child_issues[$parent]}; do
+        if [[ "${issue_progress[$child]}" != "✅" ]]; then
+          all_verified=false
+          break 2
+        fi
+      done
+    done
+
+    # Then check parent issues without child issues
+    for issue in "${!issue_progress[@]}"; do
+      # Skip parent issues with children as we'll check children separately
+      if [ ! -z "${child_issues[$issue]}" ]; then
+        continue
+      fi
+      if [[ "${issue_progress[$issue]}" != "✅" ]]; then
+        all_verified=false
+        break
+      fi
+    done
+
+    if [ -z "$unlinked_prs" ] && $all_verified; then
+      echo
       echo -e "\033[32m✅ All checks passed! Ready to release.\033[0m"
     fi
 
