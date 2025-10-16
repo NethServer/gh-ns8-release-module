@@ -6,8 +6,20 @@ set -x
 PS4='+${LINENO}: '
 fi
 
-source "$(dirname "$(readlink -f "$0")")/functions.sh"
-source "$(dirname "$(readlink -f "$0")")/check.sh"
+# Get script directory
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
+# Source library files
+source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/semver.sh"
+source "$SCRIPT_DIR/lib/github-api.sh"
+source "$SCRIPT_DIR/lib/display.sh"
+
+# Source command files
+source "$SCRIPT_DIR/commands/create.sh"
+source "$SCRIPT_DIR/commands/check.sh"
+source "$SCRIPT_DIR/commands/comment.sh"
+source "$SCRIPT_DIR/commands/clean.sh"
 
 # Function to display usage instructions
 function usage() {
@@ -65,48 +77,23 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-#If the argument `--repo` is not provided, get the repo from the current directory
-if [ -z "$repo_arg" ]; then
-  repo_arg=$(gh repo view --json owner,name --jq '.owner.login + "/" + .name')
-  if [ -z "$repo_arg" ]; then
-    echo "Could not determine the repo. Please provide the repo name using the --repo flag"
-    exit 1
-  fi
-fi
-
-#Check if the repo is a valid github repo, using the gh api
-gh api repos/$repo_arg 2>&1 > /dev/null
+# Validate and get repository
+repo_arg=$(get_or_validate_repo "$repo_arg")
 if [ $? -ne 0 ]; then
-  echo "Invalid repo: $repo_arg"
   exit 1
 fi
 
-# Check the repository has a valid NS8 module name in the format `owner/ns8-<module-name>`
-if ! echo $repo_arg | grep -qE '^[^/]+/ns8-'; then
-  echo "Invalid NS8 module name: $repo_arg"
-  exit 1
-fi
-
-#If the argument `--release-refs` is not provided, get the latest commit of the default branch
-if [ -z "$release_refs_arg" ]; then
-  release_refs_arg=$(gh api repos/$repo_arg/commits --jq '.[0].sha')
-  if [ -z "$release_refs_arg" ]; then
-    echo "Could not determine the latest commit sha. Please provide the commit sha using the --release-refs flag"
+# Get or validate commit SHA and target
+if [ -n "$release_refs_arg" ] || [ "$subcommand" == "create" ]; then
+  commit_info=$(get_or_validate_commit "$repo_arg" "$release_refs_arg")
+  if [ $? -ne 0 ]; then
     exit 1
   fi
-else
-  #Check if the commit sha is on the default branch
-  default_branch=$(gh repo view --repo $repo_arg --json defaultBranchRef -q ".defaultBranchRef.name")
-  commit_branch=$(gh api repos/$repo_arg/commits/$release_refs_arg/branches-where-head --jq '.[].name | select(. == $default_branch)' --arg default_branch $default_branch)
-  if [ -z "$commit_branch" ]; then
-    echo "The commit sha is not on the default branch: $default_branch"
-    exit 1
-  fi
-  target="--target $release_refs_arg"
+  read -r release_refs_arg target <<< "$commit_info"
 fi
 
 # If the argument `--testing` is not provided then the `--release-name` argument must be present
-if [ $testing_arg == 0 ] && [ -z "$release_name_arg" ] && [ $subcommand != "check" ] && [ $subcommand != "clean" ]; then
+if [ $testing_arg == 0 ] && [ -z "$release_name_arg" ] && [ "$subcommand" != "check" ] && [ "$subcommand" != "clean" ]; then
   echo "Please provide the release name using the --release-name flag"
   exit 1
 fi
@@ -114,7 +101,7 @@ fi
 # If the argument `--release-name` is provided check if the release name is in
 # valid semver format
 if [ ! -z "$release_name_arg" ]; then
-  if ! is_semver $release_name_arg; then
+  if ! is_semver "$release_name_arg"; then
     echo "Invalid semver format for release name"
     exit 1
   fi
@@ -123,87 +110,22 @@ fi
 
 # Check if the subcommand is `create`, `check`, `comment`, or `clean`
 if [ "$subcommand" == "create" ]; then
-  # Create a new release
-
-  release_name=$release_name_arg
-
-  if [[ "$testing_arg" == 1 || "$release_name" =~ - ]]; then
-    prerelease="--prerelease"
-    #Get the name the latest release
-    previous_release=$(gh release list --repo $repo_arg --json tagName --limit 1 --order desc --jq '.[0].tagName')
-    if [ -z "$release_name_arg" ]; then
-      release_name=$(next_testing_release $repo_arg)
-      if [ "$?" -eq 1  ]; then
-        echo $release_name
-        exit 1
-      fi
-    fi
-  else
-    # Get the name the latest release that is not a prerelease
-    previous_release=$(gh release list --repo $repo_arg --exclude-pre-releases --json tagName --limit 1 --order desc --jq '.[0].tagName')
-  fi
-
-  # Create release notes with linked issues
-  if [ -n "$previous_release" ]; then
-    # Generate release notes with linked issues
-    {
-      merged_prs=$(scan_for_prs $repo_arg $previous_release "main")
-
-      # Extract linked issues from PRs
-      all_issues=""
-      for pr in $merged_prs; do
-        linked_issues=$(get_linked_issues $repo_arg $pr)
-        if [ -n "$linked_issues" ]; then
-          all_issues="${all_issues}${linked_issues} "
-        fi
-      done
-
-      # Format and output unique issues
-      if [ -n "$all_issues" ]; then
-        echo "## Linked Issues"
-        for issue in $(echo "$all_issues" | tr ' ' '\n' | sort -u); do
-          # Get issue title
-          issue_title=$(gh api repos/NethServer/dev/issues/$issue --jq '.title' 2>/dev/null)
-          echo "- [NethServer/dev#${issue}](https://github.com/NethServer/dev/issues/${issue}): $issue_title"
-        done
-      fi
-    } | gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes --notes-file - $release_name
-  else
-    # No previous release found, use standard generate-notes
-    gh release create $draft_arg $target $prerelease --repo $repo_arg --title $release_name --generate-notes $release_name
-  fi
+  create_command_main "$repo_arg" "$release_name_arg" "$testing_arg" "$draft_arg" "$target"
 
 elif [ "$subcommand" == "check" ]; then
   # Get the name the latest release that is not a prerelease
-  latest_release=$(gh release list --repo $repo_arg --exclude-pre-releases --json tagName --limit 1 --order desc --jq '.[0].tagName')
+  latest_release=$(gh release list --repo "$repo_arg" --exclude-pre-releases --json tagName --limit 1 --order desc --jq '.[0].tagName')
 
   # Get the commit sha for the latest releases
-  latest_release_sha=$(gh api repos/$repo_arg/git/ref/tags/$latest_release --jq '.object.sha')
+  latest_release_sha=$(gh api repos/"$repo_arg"/git/ref/tags/"$latest_release" --jq '.object.sha')
 
-# Check if there are changes to release
-  check_command_main
+  # Check if there are changes to release
+  check_command_main "$repo_arg" "$latest_release" "$latest_release_sha"
 
 elif [ "$subcommand" == "comment" ]; then
-
-  # If the argument `--release-name` is not provided, get the name the latest release
-  if [ -z "$release_name_arg" ]; then
-    # Get the name the latest release
-    release_name_arg=$(gh release list  --repo $repo_arg --json tagName --limit 1 --order desc  --jq '.[0].tagName')
-  fi
-
-  create_comment $repo_arg $release_name_arg
+  comment_command_main "$repo_arg" "$release_name_arg"
 
 elif [ "$subcommand" == "clean" ]; then
-
-  # If no stable release is provided, get the latest stable release
-  if [ -z "$release_name_arg" ]; then
-    release_name_arg=$(gh release list --repo $repo_arg --exclude-pre-releases --json tagName --limit 1 --order desc --jq '.[0].tagName')
-    if [ -z "$release_name_arg" ]; then
-      echo "No stable release found in the repository."
-      exit 1
-    fi
-  fi
-
-  clean_releases $repo_arg $release_name_arg
+  clean_command_main "$repo_arg" "$release_name_arg"
 
 fi
