@@ -30,9 +30,10 @@ create_command_main() {
     previous_release=$(gh release list --repo "$repo" --json tagName --limit 1 --order desc --jq '.[0].tagName')
     if [ -z "$release_name" ]; then
       release_name=$(next_testing_release "$repo")
-      if [ "$?" -eq 1 ]; then
+      local status=$?
+      if [ "$status" -eq 1 ]; then
         echo "$release_name"
-        return 1
+        exit 1
       fi
     fi
   else
@@ -44,25 +45,31 @@ create_command_main() {
   if [ -n "$previous_release" ]; then
     # Generate release notes with linked issues
     {
-      local merged_prs=$(scan_for_prs "$repo" "$previous_release" "main")
+      # Try to get merged PRs, suppress stderr to avoid error messages
+      local merged_prs
+      merged_prs=$(scan_for_prs "$repo" "$previous_release" "main" 2>/dev/null)
+      local scan_status=$?
 
-      # Extract linked issues from PRs
-      local all_issues=""
-      for pr in $merged_prs; do
-        local linked_issues=$(get_linked_issues "$repo" "$pr")
-        if [ -n "$linked_issues" ]; then
-          all_issues="${all_issues}${linked_issues} "
-        fi
-      done
-
-      # Format and output unique issues
-      if [ -n "$all_issues" ]; then
-        echo "## Linked Issues"
-        for issue in $(echo "$all_issues" | tr ' ' '\n' | sort -u); do
-          # Get issue title
-          local issue_title=$(gh api repos/NethServer/dev/issues/"$issue" --jq '.title' 2>/dev/null)
-          echo "- [NethServer/dev#${issue}](https://github.com/NethServer/dev/issues/${issue}): $issue_title"
+      # Only process PRs if scan was successful (returns 0)
+      if [ "$scan_status" -eq 0 ] && [ -n "$merged_prs" ]; then
+        # Extract linked issues from PRs
+        local all_issues=""
+        for pr in $merged_prs; do
+          local linked_issues=$(get_linked_issues "$repo" "$pr")
+          if [ -n "$linked_issues" ]; then
+            all_issues="${all_issues}${linked_issues} "
+          fi
         done
+
+        # Format and output unique issues
+        if [ -n "$all_issues" ]; then
+          echo "## Linked Issues"
+          for issue in $(echo "$all_issues" | tr ' ' '\n' | sort -u); do
+            # Get issue title
+            local issue_title=$(gh api repos/NethServer/dev/issues/"$issue" --jq '.title' 2>/dev/null)
+            echo "- [NethServer/dev#${issue}](https://github.com/NethServer/dev/issues/${issue}): $issue_title"
+          done
+        fi
       fi
     } | gh release create $draft_arg $target $prerelease --repo "$repo" --title "$release_name" --generate-notes --notes-file - "$release_name"
   else
