@@ -56,20 +56,29 @@ function scan_for_prs() {
 # Arguments:
 #   $1 - Repository name (owner/repo)
 #   $2 - PR number
+#   $3 - Issues repository (owner/repo) to search for
 # Returns:
 #   Prints linked issue numbers to stdout
 #   Returns 1 if no linked issues found
 function get_linked_issues() {
   local repo=$1
   local pr_number=$2
+  local issues_repo=$3
   local linked_issues
 
+  # Extract owner and repo name from issues_repo
+  local issues_owner="${issues_repo%/*}"
+  local issues_name="${issues_repo#*/}"
+
   # Search for the patterns and extract the issue numbers:
-  # NethServer/issues/1234
-  # NethServer/dev#1234
-  # https://github.com/NethServer/dev/issues/1234
+  # owner/issues/1234
+  # owner/repo#1234
+  # https://github.com/owner/repo/issues/1234
+  # Build dynamic regex pattern
+  local pattern="(?<=${issues_owner}/issues/|${issues_repo}#|https:\/\/github\.com\/${issues_repo}\/issues\/)\d+"
+  
   linked_issues=$(gh pr view "$pr_number" --repo "$repo" --json body --jq '.body' | \
-  grep -oP '(?<=NethServer/issues/|NethServer/dev#|https:\/\/github.com\/NethServer\/dev\/issues\/)\d+')
+  grep -oP "$pattern")
 
   if [ -z "$linked_issues" ]; then
     return 1

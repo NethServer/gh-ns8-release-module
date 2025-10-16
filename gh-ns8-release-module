@@ -32,6 +32,7 @@ function usage() {
   echo "  --testing                  Create a testing release."
   echo "  --draft                    Create a draft release."
   echo "  --with-linked-issues       Include linked issues from PRs in release notes."
+  echo "  --issues-repo <repo-name>  Issues repository (default: NethServer/dev)."
   echo "  -h, --help                 Display this help message."
   exit 1
 }
@@ -47,6 +48,7 @@ fi
 
 testing_arg=0
 with_linked_issues_arg=0
+issues_repo_arg="NethServer/dev"
 # Parse command line arguments
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -70,6 +72,10 @@ while [ $# -gt 0 ]; do
     ;;
   --with-linked-issues)
     with_linked_issues_arg=1
+    ;;
+  --issues-repo)
+    issues_repo_arg="$2"
+    shift
     ;;
   -h|--help)
     usage
@@ -115,7 +121,7 @@ fi
 
 # Check if the subcommand is `create`, `check`, `comment`, or `clean`
 if [ "$subcommand" == "create" ]; then
-  create_command_main "$repo_arg" "$release_name_arg" "$testing_arg" "$draft_arg" "$target" "$with_linked_issues_arg"
+  create_command_main "$repo_arg" "$release_name_arg" "$testing_arg" "$draft_arg" "$target" "$with_linked_issues_arg" "$issues_repo_arg"
 
 elif [ "$subcommand" == "check" ]; then
   # Get the name the latest release that is not a prerelease
@@ -125,10 +131,10 @@ elif [ "$subcommand" == "check" ]; then
   latest_release_sha=$(gh api repos/"$repo_arg"/git/ref/tags/"$latest_release" --jq '.object.sha')
 
   # Check if there are changes to release
-  check_command_main "$repo_arg" "$latest_release" "$latest_release_sha"
+  check_command_main "$repo_arg" "$latest_release" "$latest_release_sha" "$issues_repo_arg"
 
 elif [ "$subcommand" == "comment" ]; then
-  comment_command_main "$repo_arg" "$release_name_arg"
+  comment_command_main "$repo_arg" "$release_name_arg" "$issues_repo_arg"
 
 elif [ "$subcommand" == "clean" ]; then
   clean_command_main "$repo_arg" "$release_name_arg"

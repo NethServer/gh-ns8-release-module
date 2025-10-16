@@ -13,6 +13,7 @@
 #   $4 - Draft argument (--draft or empty)
 #   $5 - Target argument (--target <sha> or empty)
 #   $6 - With linked issues flag (1 or 0)
+#   $7 - Issues repository (owner/repo)
 # Returns:
 #   0 on success, 1 on error
 create_command_main() {
@@ -22,6 +23,7 @@ create_command_main() {
   local draft_arg=$4
   local target=$5
   local with_linked_issues=$6
+  local issues_repo=$7
 
   local prerelease=""
   local previous_release=""
@@ -59,7 +61,7 @@ create_command_main() {
           # Extract linked issues from PRs
           local all_issues=""
           for pr in $merged_prs; do
-            local linked_issues=$(get_linked_issues "$repo" "$pr")
+            local linked_issues=$(get_linked_issues "$repo" "$pr" "$issues_repo")
             if [ -n "$linked_issues" ]; then
               all_issues="${all_issues}${linked_issues} "
             fi
@@ -70,8 +72,8 @@ create_command_main() {
             echo "## Linked Issues"
             for issue in $(echo "$all_issues" | tr ' ' '\n' | sort -u); do
               # Get issue title
-              local issue_title=$(gh api repos/NethServer/dev/issues/"$issue" --jq '.title' 2>/dev/null)
-              echo "- [NethServer/dev#${issue}](https://github.com/NethServer/dev/issues/${issue}): $issue_title"
+              local issue_title=$(gh api repos/"$issues_repo"/issues/"$issue" --jq '.title' 2>/dev/null)
+              echo "- [${issues_repo}#${issue}](https://github.com/${issues_repo}/issues/${issue}): $issue_title"
             done
           fi
         fi
