@@ -2,9 +2,7 @@
 
 # Clean command implementation
 
-# Source required libraries
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-source "$SCRIPT_DIR/../lib/semver.sh"
+# Note: Libraries are sourced by main script, no need to source here
 
 # Function to clean pre-releases between stable releases
 #

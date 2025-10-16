@@ -2,10 +2,7 @@
 
 # Comment command implementation
 
-# Source required libraries
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-source "$SCRIPT_DIR/../lib/github-api.sh"
-source "$SCRIPT_DIR/../lib/semver.sh"
+# Note: Libraries are sourced by main script, no need to source here
 
 # Create comments on linked issues for a release
 #

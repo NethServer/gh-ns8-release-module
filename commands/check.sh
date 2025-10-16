@@ -2,10 +2,7 @@
 
 # Check command implementation
 
-# Source required libraries
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-source "$SCRIPT_DIR/../lib/github-api.sh"
-source "$SCRIPT_DIR/../lib/display.sh"
+# Note: Libraries are sourced by main script, no need to source here
 
 # Check if release is needed
 #
