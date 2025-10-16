@@ -31,6 +31,7 @@ function usage() {
   echo "  --release-name <name>      Specify the release name (must follow semver format)."
   echo "  --testing                  Create a testing release."
   echo "  --draft                    Create a draft release."
+  echo "  --with-linked-issues       Include linked issues from PRs in release notes."
   echo "  -h, --help                 Display this help message."
   exit 1
 }
@@ -45,6 +46,7 @@ else
 fi
 
 testing_arg=0
+with_linked_issues_arg=0
 # Parse command line arguments
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -65,6 +67,9 @@ while [ $# -gt 0 ]; do
     ;;
   --draft)
     draft_arg="--draft"
+    ;;
+  --with-linked-issues)
+    with_linked_issues_arg=1
     ;;
   -h|--help)
     usage
@@ -110,7 +115,7 @@ fi
 
 # Check if the subcommand is `create`, `check`, `comment`, or `clean`
 if [ "$subcommand" == "create" ]; then
-  create_command_main "$repo_arg" "$release_name_arg" "$testing_arg" "$draft_arg" "$target"
+  create_command_main "$repo_arg" "$release_name_arg" "$testing_arg" "$draft_arg" "$target" "$with_linked_issues_arg"
 
 elif [ "$subcommand" == "check" ]; then
   # Get the name the latest release that is not a prerelease
