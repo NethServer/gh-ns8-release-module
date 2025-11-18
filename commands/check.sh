@@ -118,8 +118,13 @@ process_prs_and_collect_issues() {
   fi
 
   for pr in $prs; do
-    local linked=$(get_linked_issues "$repo" "$pr" "$issues_repo")
-    if [ "$?" -ne 0 ]; then
+    local linked
+    if linked=$(get_linked_issues "$repo" "$pr" "$issues_repo"); then
+      # PR has linked issues
+      for issue in $linked; do
+        process_issue "$repo" "$issue" "$issues_repo"
+      done
+    else
       # Handle translation and unlinked PRs
       local has_translation=$(gh api repos/"$repo"/pulls/"$pr" --jq '[.labels[].name] | any(. == "translation")')
       if [ "$has_translation" = "true" ]; then
@@ -127,10 +132,6 @@ process_prs_and_collect_issues() {
       else
         unlinked_prs="${unlinked_prs}https://github.com/$repo/pull/$pr\n"
       fi
-    else
-      for issue in $linked; do
-        process_issue "$repo" "$issue" "$issues_repo"
-      done
     fi
   done
   return 0
