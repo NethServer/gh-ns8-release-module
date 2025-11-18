@@ -8,6 +8,7 @@
 # Module-scoped variables (populated by check_command_main)
 unlinked_prs=""
 translation_prs=""
+orphan_commits=""
 declare -A parent_issues
 declare -A child_issues
 declare -A issue_labels
@@ -112,11 +113,30 @@ process_prs_and_collect_issues() {
   local latest_release=$2
   local issues_repo=$3
 
+  # Get all commits in range
+  local all_commits=$(gh api repos/"$repo"/compare/"$latest_release"...main --jq '.commits[].sha')
+  if [ -z "$all_commits" ]; then
+    echo "No commits found in the specified range."
+    return 1
+  fi
+
+  # Track which commits are part of PRs
+  declare -A commits_in_prs
+
   local prs=$(scan_for_prs "$repo" "$latest_release" main)
   if [ "$?" -ne 0 ]; then
     return 1
   fi
 
+  # First pass: mark all commits that belong to PRs
+  for commit in $all_commits; do
+    local commit_prs=$(gh api repos/"$repo"/commits/"$commit"/pulls --jq '.[].number' 2>/dev/null)
+    if [ ! -z "$commit_prs" ]; then
+      commits_in_prs[$commit]=1
+    fi
+  done
+
+  # Second pass: process PRs for issues
   for pr in $prs; do
     local linked
     if linked=$(get_linked_issues "$repo" "$pr" "$issues_repo"); then
@@ -134,6 +154,14 @@ process_prs_and_collect_issues() {
       fi
     fi
   done
+
+  # Find commits not in any PR
+  for commit in $all_commits; do
+    if [ -z "${commits_in_prs[$commit]}" ]; then
+      orphan_commits="${orphan_commits}https://github.com/$repo/commit/$commit\n"
+    fi
+  done
+
   return 0
 }
 
@@ -151,6 +179,11 @@ display_check_summary() {
   if [ ! -z "$translation_prs" ]; then
     echo -e "\033[36mTranslation PRs:\033[0m"
     echo -e "$translation_prs"
+  fi
+
+  if [ ! -z "$orphan_commits" ]; then
+    echo -e "\033[35mCommits outside PRs:\033[0m"
+    echo -e "$orphan_commits"
   fi
 
   echo -e "\033[1mIssues:\033[0m"
@@ -264,6 +297,7 @@ check_command_main() {
   # Reset module-scoped variables
   unlinked_prs=""
   translation_prs=""
+  orphan_commits=""
   parent_issues=()
   child_issues=()
   issue_labels=()
